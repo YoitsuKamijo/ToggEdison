@@ -1,0 +1,218 @@
+#include <unistd.h>
+#include "mraa.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <pthread.h>
+
+//for TCP communication
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <string.h>
+#include <errno.h>
+#include <arpa/inet.h>
+
+#define ROW 4
+#define COL 4
+
+static volatile int counter_2 = 0;
+static volatile int oldcounter_2 = 0;
+static volatile int count_zero_2 = 0;
+static volatile int delta_2 = 0;
+
+static volatile int counter_3 = 0;
+static volatile int oldcounter_3 = 0;
+static volatile int count_zero_3 = 0;
+static volatile int delta_3 = 0;
+
+static volatile int counter_4 = 0;
+static volatile int oldcounter_4 = 0;
+static volatile int count_zero_4 = 0;
+static volatile int delta_4 = 0;
+
+void interrupt2(void* args) {
+       	++counter_2;
+}
+
+void interrupt3(void* args) {
+       	++counter_3;
+}
+
+void interrupt4(void* args) {
+       	++counter_4;
+}
+
+int main(int argc, char *argv[]) {	
+    //set up the grid
+   int grid[ROW][COL] = {{0,0,0,0}, {0,0,0,0},{0,0,0,0},{0,0,0,0}};
+   int flag2 = 0;
+   int flag3 = 0;
+   int flag4 = 0;
+    
+    //init gpio pins
+  mraa_init();
+  mraa_gpio_context low;
+  mraa_gpio_context medium;
+  mraa_gpio_context high;
+  mraa_gpio_context relay_signal;
+    
+    //setup gpio pins
+  low = mraa_gpio_init(2);
+  medium = mraa_gpio_init(3);
+  high = mraa_gpio_init(25);
+  relay_signal = mraa_gpio_init(8);
+  if (medium == NULL) 
+  {
+	  printf("\n Error: Radar hardware not available \n");
+	  return 1;
+  }
+
+    //setup gpio direction         
+   mraa_gpio_dir(low, MRAA_GPIO_IN);
+   mraa_gpio_dir(medium, MRAA_GPIO_IN);
+   mraa_gpio_dir(high, MRAA_GPIO_IN);
+   mraa_gpio_dir(relay_signal, MRAA_GPIO_OUT);
+   mraa_gpio_write(relay_signal, 0);
+    //interrupt edge trigger
+   mraa_gpio_edge_t edge2 = MRAA_GPIO_EDGE_BOTH;
+   mraa_gpio_edge_t edge3 = MRAA_GPIO_EDGE_BOTH;
+   //mraa_gpio_edge_t edge4 = MRAA_GPIO_EDGE_BOTH;
+  
+   mraa_gpio_isr(low,    edge2, &interrupt2, NULL);
+   mraa_gpio_isr(medium, edge3, &interrupt3, NULL);
+   //mraa_gpio_isr(high,   edge4, &interrupt4, NULL);
+
+   //client socket setup
+   int sockfd = 0, n = 0;
+   char sendBuff[1025];
+   struct sockaddr_in serv_addr;
+   time_t ticks;
+
+   if(argc != 2)
+   {
+	   printf("\n Usage: %s <ip of server> \n", argv[0]);
+	   return 1;
+   }
+   //memory allocation for buffer and server address
+   memset(sendBuff, '0', sizeof(sendBuff));
+   memset(&serv_addr, '0', sizeof(serv_addr));
+
+   serv_addr.sin_family = AF_INET;
+   serv_addr.sin_port = htons(5000);
+
+   if(inet_pton(AF_INET, argv[1], &serv_addr.sin_addr)<=0)
+   {
+	   printf("\n inet_pton error occured\n");
+	   return 1;
+   }
+
+
+  
+    for (;;) {
+        //for sensor 2
+        if (counter_2 == oldcounter_2) {
+	    oldcounter_2 = 0;
+	    counter_2 = 0;
+        } else {
+	    delta_2 = counter_2 - oldcounter_2;
+	    oldcounter_2 = counter_2;
+        } 
+        //for sensor 3
+        if (counter_3 == oldcounter_3) {
+            oldcounter_3 = 0;
+            counter_3 = 0; 
+        } else {
+	    delta_3 = counter_3 - oldcounter_3;
+            oldcounter_3 = counter_3; 
+        }
+        //for sensor 4
+        //if (counter_4 == oldcounter_4) {
+        //    oldcounter_4 = 0;
+        //    counter_4 = 0;
+        //} else { 
+	//    delta_4 = counter_4 - oldcounter_4;
+        //    oldcounter_4 = counter_4; 
+        //}
+ 
+ 
+
+	//for sensor 2
+        if (oldcounter_2 == 0 && counter_2 == 0) { 
+            count_zero_2++; 
+        }
+        //for sensor 3
+        if (oldcounter_3 == 0 && counter_3 == 0) { 
+            count_zero_3++; 
+        }
+        //for sensor 4
+        //if (oldcounter_4 == 0 && counter_4 == 0) { 
+        //    count_zero_4++; 
+        //}
+
+
+        //for sensor 2
+        if (count_zero_2 >= 10) { 
+            count_zero_2 = 0;
+	    mraa_gpio_write(relay_signal, 0); 
+            flag2 = 0;
+	   // fprintf(stdout, "2 no motion\n"); 
+        }  
+
+        if(delta_2 > 2){ 
+	    count_zero_2 = 0;
+            mraa_gpio_write(relay_signal, 1);
+	    flag2 = 1;
+	    printf("delta_2: %i\n", delta_2);
+           // fprintf(stdout, "2 motion!!!\n"); 
+        }
+        //for sensor 3
+        if (count_zero_3 >= 10) {  
+            count_zero_3 = 0;
+            flag3 = 0;
+	   // fprintf(stdout, "\t\t\t3 no motion\n");
+        }
+        if(delta_3 > 2) { 
+            count_zero_3 = 0; 
+            flag3 = 1;
+	    printf("delta_3: %i\n", delta_3);
+	   // fprintf(stdout, "\t\t\t3 motion!!!\n"); 
+        }
+
+
+        //for sensor 4
+        //if (count_zero_4 >= 10) {  
+        //    count_zero_4 = 0;
+        //    flag4 = 0;
+	   // fprintf(stdout, "\t\t\t\t\t4 no motion\n");
+        //}
+        //if(delta_4 > 10) { 
+        //    count_zero_4 = 0; 
+        //    flag4 = 1;
+	//    printf("delta_4: %i\n", delta_4);
+	   // fprintf(stdout, "\t\t\t\t\t4 motion!!!\n"); 
+        //}
+
+	//create socket
+	if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	{
+		printf("\n Error : Could not create socket \n");
+		continue;
+	}
+
+	if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+	{
+		printf("\n Error : Connect Failed \n");
+		continue;
+	}
+	//setup buffer content
+	printf ("client_readings: %i, %i\n", flag2, flag3);
+	snprintf(sendBuff, sizeof(sendBuff), "2,%i,%i\n", flag2, flag3);
+	//write to server
+	write(sockfd, sendBuff, strlen(sendBuff));
+	close(sockfd);
+	//sleep
+        usleep(350* 1000); 
+        }
+}
