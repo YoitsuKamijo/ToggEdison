@@ -12,6 +12,7 @@
 //TCP server
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netdb.h>
 #include <arpa/inet.h>
 #include <errno.h>
 #include <string.h>
@@ -54,6 +55,7 @@ int main() {
    int flag2 = 0;
    int flag3 = 0;
    int flag4 = 0;
+
     
     //init gpio pins
   mraa_init();
@@ -86,6 +88,7 @@ int main() {
    int listenfd = 0, connfd = 0, n = 0;
    struct sockaddr_in serv_addr;
    char recvBuff[1024];
+   int pid = 0;
 
    listenfd = socket(AF_INET, SOCK_STREAM, 0);
    memset(&serv_addr, '0', sizeof(serv_addr));
@@ -127,33 +130,46 @@ int main() {
 	
 	while (client_collected + client2_collected + client3_collected != 3) {
 		connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
-		if ((n = read(connfd, recvBuff, sizeof(recvBuff))) > 0) {
-			recvBuff[n] = 0;
-			if(fputs(recvBuff, stdout) == EOF)
-			{
-				printf("\n Error : Fputs error\n");
-			}
-			char *tokens = strtok(recvBuff, ",");
-			int i;
-			printf("recvBuff: %c,%c,%c,%c,%c,%c,%c\n", recvBuff[0], recvBuff[1], recvBuff[2], recvBuff[3], recvBuff[4],recvBuff[5], recvBuff[6]);
-			if (recvBuff[0] -'0' == 1) {
-		   		client_grid[0] = recvBuff[2] - '0';
-		   		client_grid[1] = recvBuff[4] - '0';
-		   		client_grid[2] = recvBuff[6] - '0';
-				client_collected = 1;
-			} else if (recvBuff[0] - '0' == 2) {
-		   		client2_grid[0] = recvBuff[2] - '0';
-		   		client2_grid[1] = recvBuff[4] - '0';
-		   		client2_grid[2] = recvBuff[6] - '0';
-				client2_collected= 1;
-			} else if (recvBuff[0] - '0' == 3) {
-				client3_grid[0] = recvBuff[2] - '0';
-				client3_grid[1] = recvBuff[4] - '0';
-				client3_grid[2] = recvBuff[6] - '0';
-				client3_collected = 1;
-			}
+		pid = fork();
+		if (pid < 0) {
+			perror("EROR on fork");
+			exit(1);		
 		}
-		close(connfd);
+		if (pid == 0) {
+			close(listenfd);
+			if ((n = read(connfd, recvBuff, sizeof(recvBuff))) > 0) {
+				recvBuff[n] = 0;
+				if(fputs(recvBuff, stdout) == EOF)
+				{
+					printf("\n Error : Fputs error\n");
+				}
+				char *tokens = strtok(recvBuff, ",");
+				int i;
+				printf("recvBuff: %c,%c,%c,%c,%c,%c,%c\n", recvBuff[0], recvBuff[1], recvBuff[2], recvBuff[3], recvBuff[4],recvBuff[5], recvBuff[6]);
+				if (recvBuff[0] -'0' == 1) {
+			   		client_grid[0] = recvBuff[2] - '0';
+			   		client_grid[1] = recvBuff[4] - '0';
+			   		client_grid[2] = recvBuff[6] - '0';
+					client_collected = 1;
+				} else if (recvBuff[0] - '0' == 2) {
+			   		client2_grid[0] = recvBuff[2] - '0';
+			   		client2_grid[1] = recvBuff[4] - '0';
+			   		client2_grid[2] = recvBuff[6] - '0';
+					client2_collected= 1;
+				} else if (recvBuff[0] - '0' == 3) {
+					client3_grid[0] = recvBuff[2] - '0';
+					client3_grid[1] = recvBuff[4] - '0';
+					client3_grid[2] = recvBuff[6] - '0';
+					client3_collected = 1;
+				}
+			}
+			exit(0);
+			
+		}
+		else {
+			close(connfd);
+		}
+		
 
 
 	}
