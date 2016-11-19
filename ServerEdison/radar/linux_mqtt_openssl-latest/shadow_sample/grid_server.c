@@ -56,7 +56,6 @@ int main() {
    int flag3 = 0;
    int flag4 = 0;
 
-    
     //init gpio pins
   mraa_init();
   mraa_gpio_context low;
