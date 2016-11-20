@@ -34,6 +34,8 @@ static volatile int oldcounter_4 = 0;
 static volatile int count_zero_4 = 0;
 static volatile int delta_4 = 0;
 
+int client_collected = 0, client2_collected = 0, client3_collected = 0;
+
 void interrupt2(void* args) {
        	++counter_2;
 }
@@ -45,6 +47,7 @@ void interrupt3(void* args) {
 void interrupt4(void* args) {
        	++counter_4;
 }
+int doprocessing(int);
 
 int main() {	
     //set up the grid
@@ -135,10 +138,10 @@ int main() {
 	int client2_grid[3] = {0,0,0};
 	int client3_grid[3] = {0,0,0};
 	int server_grid[3] = {0,0,0};
-	int client_collected = 0,  client2_collected = 0, client3_collected = 0;
+	int count = 0;
 	//read grid information from client grid
 	
-	while (client_collected + client2_collected + client3_collected != 3) {
+	while (count != 3) {
 		connfd = accept(listenfd, (struct sockaddr*) &cli_addr, &clilen);
 		pid = fork();
 		if (pid < 0) {
@@ -147,7 +150,7 @@ int main() {
 		}
 		if (pid == 0) {
 			close(listenfd);
-			doprocessing(connfd);
+			count = doprocessing(connfd);
 			exit(0);
 		}
 		else {
@@ -287,9 +290,10 @@ int main() {
     return 1;
 }
 
-void doprocessing(int sock) {
+int doprocessing(int sock) {
 	int n;
         char recvBuffer[1024];
+	int sum = 0;;
         bzero(recvBuffer, 1024); 
 	if ((n = read(sock, recvBuff, sizeof(recvBuff))) > 0) {
 		recvBuff[n] = 0;
@@ -316,5 +320,12 @@ void doprocessing(int sock) {
 			client3_grid[2] = recvBuff[6] - '0';
 			client3_collected = 1;
 		}
+		sum = client_collected + client2_collected + client3_collected;
+		if (sum == 3) {
+			return sum;		
+		} else {
+			return 0;
+		}
+		
 	}
 }

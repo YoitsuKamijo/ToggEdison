@@ -272,8 +272,8 @@ int main() {
 	for (j=0; j<2; j++) {
 		grid_bits = (grid_bits << 1) | client2_grid[j];
 		printf("client2 grid: %i\n", client2_grid[j]);
-	}
 	for (j =0; j<2; j++) {
+	}
 		grid_bits = (grid_bits << 1) | client3_grid[j];
 		printf("client3 grid: %i\n", client3_grid[j]);
 	}
